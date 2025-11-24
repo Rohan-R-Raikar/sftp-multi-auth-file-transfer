@@ -1,0 +1,58 @@
+# ----------------------------
+# OS / Editor files
+# ----------------------------
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.bak
+*.tmp
+*.log
+.vs/
+
+
+# ----------------------------
+# Python files (if using Python)
+# ----------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# ----------------------------
+# SSH / SFTP sensitive files
+# ----------------------------
+*.pem
+*.ppk
+*.key
+id_rsa
+id_rsa.pub
+*.crt
+*.csr
+*.cert
+*.p12
+*.jks
+
+# ----------------------------
+# Certificates & Secrets
+# ----------------------------
+*.pass
+*.passphrase
+*.env
+config   # if you store credentials in a config file
+*.secret
+*.der
+
+# ----------------------------
+# IDE / Editor folders
+# ----------------------------
+.vscode/
+.idea/
+*.iml
+
+# ----------------------------
+# Other
+# ----------------------------
+*.bak
+*.orig
+*.old
