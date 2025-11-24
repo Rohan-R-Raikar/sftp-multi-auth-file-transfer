@@ -26,28 +26,22 @@ namespace SftpApi.Controllers
 
             try
             {
-                // 1. Build SFTP client based on AuthType
                 using var client = BuildClient(rec);
 
-                // 2. Try handshake
                 client.Connect();
 
-                // 3. If handshake succeeds → prepare local copy
                 string sourceFile = @"D:\New\New Text Document.txt";
                 if (!System.IO.File.Exists(sourceFile))
                     return BadRequest(new { success = false, error = "Source file not found: " + sourceFile });
 
-                // Folder format: UID<ID>(yyyy-MM-dd_HH-mm-ss)
                 string time = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
                 string targetFolder = $@"C:\Newfolder\UID{id}({time})";
                 Directory.CreateDirectory(targetFolder);
 
                 string targetFile = Path.Combine(targetFolder, "New Text Document.txt");
 
-                // 4. Copy file locally
                 System.IO.File.Copy(sourceFile, targetFile, overwrite: true);
 
-                // 5. Create detailed info file
                 string infoFile = Path.Combine(targetFolder, "TransferInfo.txt");
                 string infoContent = $@"
                                         Transfer Timestamp: {time}
@@ -61,7 +55,6 @@ namespace SftpApi.Controllers
                                         ";
                 System.IO.File.WriteAllText(infoFile, infoContent);
 
-                // 6. Disconnect
                 client.Disconnect();
 
                 return Ok(new

@@ -1,25 +1,40 @@
 using Microsoft.EntityFrameworkCore;
 using SftpApi.Data;
-using System;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers();
+builder.Services.AddControllersWithViews();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "SFTP API V1");
+        c.RoutePrefix = "swagger";
+    });
 }
 
 app.UseHttpsRedirection();
+app.UseStaticFiles();
+app.UseRouting();
 app.UseAuthorization();
-app.MapControllers();
+
+app.MapGet("/", context =>
+{
+    context.Response.Redirect("/SftpMvc/Upload");
+    return Task.CompletedTask;
+});
+
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=SftpMvc}/{action=Index}/{id?}");
+
 app.Run();
