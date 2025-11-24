@@ -1,160 +1,216 @@
-# SFTP Multi-Auth File Transfer
+# SFTP Multi-Auth File Transfer — Clean README
 
-A comprehensive example of SFTP file transfer using multiple authentication methods with OpenSSH on Windows. This project demonstrates how to configure an SFTP server, set up users and keys, and transfer files securely using different authentication types.
+A compact, practical README showing how to configure an OpenSSH SFTP server on **Windows**, set up multi-mode authentication (password, key, passphrase-protected key, and certificate), and transfer files reliably. This single-file README focuses on clarity and correctness.
 
 ---
 
 ## Table of Contents
-1. [SFTP Server Configuration](#sftp-server-configuration)  
-2. [Authentication Methods](#authentication-methods)  
-3. [Code Functionality](#code-functionality)  
-4. [Common Issues & Blockers](#common-issues--blockers)  
-5. [Q & A](#q--as)  
+
+1. Overview
+2. Prerequisites
+3. Server setup (step-by-step)
+4. Generating keys & certificates (examples)
+5. Client examples (SFTP commands)
+6. Example transfer workflow (what the script does)
+7. Permissions & common issues
+8. FAQ
+9. Troubleshooting checklist
 
 ---
 
-## SFTP Server Configuration
+## 1. Overview
 
-### 1. Create SFTP User
+This README describes a minimal, repeatable process to:
+
+* Create a Windows SFTP user for OpenSSH
+* Configure `sshd_config` for an `internal-sftp` chrooted user
+* Install/authorize public keys, including a CA-signed user certificate
+* Demonstrate client usages for: password, private key (with/without passphrase), and certificate-based authentication
+* Show a robust transfer flow that records metadata about each transfer
+
+This file is written to be copy-paste ready into `README.md` in your repo.
+
+---
+
+## 2. Prerequisites
+
+* Windows Server / Windows 10+ with **OpenSSH Server** installed and running.
+* Administrative privileges for user & permission changes.
+* OpenSSH client (`ssh`, `sftp`, `ssh-keygen`) available on client machine.
+
+---
+
+## 3. Server setup (step-by-step)
+
+**Create a local SFTP user**
+
 ```powershell
-net user sftpuser Pass@123 /add
-2. Create .ssh Folder
+# Create user (change password to a secure value)
+net user sftpuser "Pass@123" /add
+```
+
+**Create .ssh directory and authorized_keys**
+
+```powershell
 mkdir C:\Users\sftpuser\.ssh
-
-3. Create authorized_keys
-
-Copy your public key into this file:
-
 notepad C:\Users\sftpuser\.ssh\authorized_keys
+# paste public key content into authorized_keys
+```
 
-4. Fix Permissions (Critical)
+**Fix permissions (OpenSSH on Windows is strict)**
+
+```powershell
+# Remove inheritance and grant explicit permissions
 icacls "C:\Users\sftpuser\.ssh" /inheritance:r
-icacls "C:\Users\sftpuser\.ssh" /grant "SYSTEM:(F)"
-icacls "C:\Users\sftpuser\.ssh" /grant "Administrators:(F)"
-icacls "C:\Users\sftpuser\.ssh" /grant "sftpuser:(F)"
-
+icacls "C:\Users\sftpuser\.ssh" /grant "SYSTEM:(F)" "Administrators:(F)" "sftpuser:(F)"
 icacls "C:\Users\sftpuser\.ssh\authorized_keys" /inheritance:r
-icacls "C:\Users\sftpuser\.ssh\authorized_keys" /grant "SYSTEM:(F)"
-icacls "C:\Users\sftpuser\.ssh\authorized_keys" /grant "Administrators:(F)"
-icacls "C:\Users\sftpuser\.ssh\authorized_keys" /grant "sftpuser:(F)"
+icacls "C:\Users\sftpuser\.ssh\authorized_keys" /grant "SYSTEM:(F)" "Administrators:(F)" "sftpuser:(F)"
+```
 
-5. Configure SSHD
+**Configure sshd to force internal-sftp for this user**
 
-Edit sshd_config:
+Edit `C:\ProgramData\ssh\sshd_config` and append (or modify) a `Match` block:
 
-notepad "C:\ProgramData\ssh\sshd_config"
-
-
-Add:
-
+```
 Match User sftpuser
     ForceCommand internal-sftp
     AuthorizedKeysFile C:/Users/sftpuser/.ssh/authorized_keys
+    ChrootDirectory C:/sftp-root/%u    # optional: use chroot if desired; ensure permissions
+```
 
-6. Restart SSH service
+**Restart SSHD service**
+
+```powershell
 Restart-Service sshd
+```
 
-7. Generate Keys
-ssh-keygen -t ed25519 -f "C:\Users\XD24100BT\.ssh\id_ed25519" -C "regular_key"
+> Note: The SSH service listens on the port defined in `sshd_config` (default `22`). You may change it — SFTP will use whatever SSH port the server is configured to listen on.
 
-8. Create Passphrase-Protected Key
-Copy-Item "C:\Users\XD24100BT\.ssh\id_ed25519" "C:\Users\XD24100BT\.ssh\id_ed25519_encrypt"
-ssh-keygen -p -f "C:\Users\XD24100BT\.ssh\id_ed25519_encrypt"
-# Enter passphrase (example): Abc@123
+---
 
-9. Create Certificate Authority + User Certificate
-ssh-keygen -t ed25519 -f "C:\Users\XD24100BT\.ssh\ssh_ca" -C "SFTP_CA"
-ssh-keygen -s "C:\Users\XD24100BT\.ssh\ssh_ca" -I user_cert -n sftpuser -V +52w "C:\Users\XD24100BT\.ssh\id_ed25519.pub"
+## 4. Generating keys & certificates (examples)
 
-10. Copy CA Public Key to SSH Server
-Copy-Item "C:\Users\XD24100BT\.ssh\ssh_ca.pub" "C:\ProgramData\ssh\ssh_ca.pub"
+**Generate an ed25519 keypair (no passphrase)**
 
-11. Verification
+```powershell
+ssh-keygen -t ed25519 -f C:\Users\DevUser\.ssh\id_ed25519 -C "regular_key"
+```
 
-Check logs for key issues:
+**Create a copy and add a passphrase**
 
-Select-String -Path "C:\ProgramData\ssh\logs\sshd.log" -Pattern "authorized_keys"
+```powershell
+Copy-Item "C:\Users\DevUser\.ssh\id_ed25519" "C:\Users\DevUser\.ssh\id_ed25519_encrypt"
+ssh-keygen -p -f "C:\Users\DevUser\.ssh\id_ed25519_encrypt"
+# You will be prompted to enter a new passphrase
+```
 
-Authentication Methods
-1. Username + Password
-sftp sftpuser@localhost
-# or block publickey
-sftp -o PubkeyAuthentication=no sftpuser@localhost
+**Create a CA and sign a user key (certificate-based auth)**
 
-2. Username + Private Key (No Passphrase)
-sftp -i "C:\Users\XD24100BT\.ssh\id_ed25519" -o PubkeyAuthentication=yes -o PasswordAuthentication=no sftpuser@localhost
+```powershell
+# generate CA keypair
+ssh-keygen -t ed25519 -f C:\Users\DevUser\.ssh\ssh_ca -C "SFTP_CA"
+# sign user public key to produce user certificate
+ssh-keygen -s C:\Users\DevUser\.ssh\ssh_ca -I user_cert -n sftpuser -V +52w C:\Users\DevUser\.ssh\id_ed25519.pub
+# copy CA public key to server and reference it from sshd_config (TrustedUserCAKeys)
+Copy-Item C:\Users\DevUser\.ssh\ssh_ca.pub C:\ProgramData\ssh\ssh_ca.pub
+```
 
-3. Username + Passphrase-Protected Key
-sftp -i "C:\Users\XD24100BT\.ssh\id_ed25519_encrypt" -o PubkeyAuthentication=yes -o PasswordAuthentication=no sftpuser@localhost
-# Enter passphrase: Abc@123
+Add or set in server `sshd_config`:
 
-4. Certificate-Based Authentication
-sftp -i "C:\Users\XD24100BT\.ssh\id_ed25519" `
-     -o CertificateFile="C:\Users\XD24100BT\.ssh\id_ed25519-cert.pub" `
-     -o PasswordAuthentication=no `
-     sftpuser@localhost
+```
+TrustedUserCAKeys C:/ProgramData/ssh/ssh_ca.pub
+```
 
-Code Functionality
+Restart `sshd` after changes.
 
-Fetch record from database using ID
+---
 
-Build SFTP client based on authentication method:
+## 5. Client examples (SFTP)
 
-Password
+**Username + password**
 
-Private Key
+```bash
+sftp sftpuser@your.server.example.com
+# or to force password auth from a client that would try pubkey first:
+sftp -o PubkeyAuthentication=no sftpuser@your.server.example.com
+```
 
-Private Key + Passphrase
+**Username + private key (no passphrase)**
 
-Certificate + Private Key
+```bash
+sftp -i "C:/Users/DevUser/.ssh/id_ed25519" -o PasswordAuthentication=no sftpuser@your.server.example.com
+```
 
-Connect to the SFTP server
+**Passphrase-protected key**
 
-Copy local file:
+```bash
+sftp -i "C:/Users/DevUser/.ssh/id_ed25519_encrypt" -o PasswordAuthentication=no sftpuser@your.server.example.com
+# client will prompt for passphrase
+```
 
-D:\New\New Text Document.txt
+**Certificate-based auth (user certificate + private key)**
 
+```bash
+sftp -i "C:/Users/DevUser/.ssh/id_ed25519" -o CertificateFile="C:/Users/DevUser/.ssh/id_ed25519-cert.pub" -o PasswordAuthentication=no sftpuser@your.server.example.com
+```
 
-to a time-stamped directory:
+---
 
-C:\Newfolder\UID{id}(yyyy-MM-dd_HH-mm-ss)
+## 6. Example transfer workflow (scripted behavior)
 
+A helper script or program should perform these steps:
 
-Generate TransferInfo.txt with:
+1. Read the record ID and source path (e.g. `D:\New\New Text Document.txt`).
+2. Build SFTP client using selected auth method.
+3. Connect to server and create a timestamped destination folder, e.g. `C:\Newfolder\UID{id}\(yyyy-MM-dd_HH-mm-ss)`.
+4. Upload the file to the timestamped directory.
+5. Create a `TransferInfo.txt` file with metadata:
 
-Timestamp
+   * Timestamp
+   * Record ID
+   * Source path
+   * Target path on server
+   * Authentication method used
+   * Host, port, username
+6. Disconnect and return a JSON object with saved local/remote paths.
 
-Record ID
+## 7. Permissions & common issues
 
-Source file path
+* If OpenSSH refuses to use `authorized_keys`, **verify Windows ACLs** — incorrect inheritance or lacking SYSTEM/Administrators access will break key auth.
+* Use `icacls` to confirm permissions; OpenSSH typically requires that the `.ssh` folder and `authorized_keys` are not group/world writable and inheritance is removed.
+* If multiple keys exist in different locations, ensure `AuthorizedKeysFile` in `sshd_config` points to the file you manage.
+* Check `C:\ProgramData\ssh\logs\sshd.log` (or Windows Event Log) for detailed messages.
 
-Target file path
+---
 
-Authentication method
+## 8. FAQ
 
-Host, Port, Username
+**Q: Is port 22 mandatory?**
+A: No — `22` is the default SSH/SFTP port, but you can configure `Port <n>` in `sshd_config` to use a different port. Clients must connect to the same port.
 
-Disconnect from SFTP
+**Q: Is username mandatory?**
+A: Yes — SSH/SFTP requires a username to map to a server account or identity.
 
-Return JSON response with saved paths
+**Q: Can I combine auth methods?**
+A: You can require multiple factors on the server (e.g., `AuthenticationMethods publickey,password`) but doing so requires careful server config. Test thoroughly.
 
-Common Issues & Blockers
+---
 
-SYSTEM could not read authorized_keys (Permission denied)
+## 9. Troubleshooting checklist
 
-Incorrect inheritance on .ssh folder
+* [ ] Confirm `sshd` is running and listening (`netstat -an` or `Get-NetTCPConnection`).
+* [ ] Confirm correct port in `sshd_config` and firewall rules open the port.
+* [ ] Verify `authorized_keys` contents and exact path configured.
+* [ ] Verify ACLs with `icacls` and remove inheritance if needed.
+* [ ] If using CA-signed certs, ensure `TrustedUserCAKeys` points to the CA public key and `sshd` was restarted.
+* [ ] Inspect `sshd` logs for errors and address the first reported error.
 
-Multiple key locations caused confusion
+---
 
-Always verify icacls output – OpenSSH on Windows is strict
+## License
 
-Q & A
+MIT
 
-Is port 22 mandatory?
-Yes, SFTP only works if the server is listening on the correct port.
+---
 
-Is username mandatory for all authentication types?
-Yes, username is always required for SFTP.
-
-What if a different port is used?
-Update sshd_config with the new port and restart SSH service.
+If you want, I can also produce a ready-to-run PowerShell script that performs the server-side setup (user creation, permission fixing, and sshd_config patch). Let me know and I will add it.

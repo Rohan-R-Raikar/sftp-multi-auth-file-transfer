@@ -131,6 +131,9 @@ D:\Rohan\Study Projects with Repo\SftpApi\SftpApi\obj\Debug\net8.0\SftpApi.Assem
 D:\Rohan\Study Projects with Repo\SftpApi\SftpApi\obj\Debug\net8.0\SftpApi.csproj.CoreCompileInputs.cache
 D:\Rohan\Study Projects with Repo\SftpApi\SftpApi\obj\Debug\net8.0\SftpApi.MvcApplicationPartsAssemblyInfo.cs
 D:\Rohan\Study Projects with Repo\SftpApi\SftpApi\obj\Debug\net8.0\SftpApi.MvcApplicationPartsAssemblyInfo.cache
+D:\Rohan\Study Projects with Repo\SftpApi\SftpApi\obj\Debug\net8.0\SftpApi.RazorAssemblyInfo.cache
+D:\Rohan\Study Projects with Repo\SftpApi\SftpApi\obj\Debug\net8.0\SftpApi.RazorAssemblyInfo.cs
+D:\Rohan\Study Projects with Repo\SftpApi\SftpApi\obj\Debug\net8.0\SftpApi.sourcelink.json
 D:\Rohan\Study Projects with Repo\SftpApi\SftpApi\obj\Debug\net8.0\rjimswa.dswa.cache.json
 D:\Rohan\Study Projects with Repo\SftpApi\SftpApi\obj\Debug\net8.0\rjsmrazor.dswa.cache.json
 D:\Rohan\Study Projects with Repo\SftpApi\SftpApi\obj\Debug\net8.0\rjsmcshtml.dswa.cache.json
