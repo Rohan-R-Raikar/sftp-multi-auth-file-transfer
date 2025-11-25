@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Renci.SshNet;
 using SftpApi.Data;
 using SftpApi.Models;
+using SftpApi.Services;
 
 namespace SftpApi.Controllers
 {
@@ -28,9 +29,6 @@ namespace SftpApi.Controllers
             return View(rec);
         }
 
-        // --------------------------
-        // 1) Try to connect only
-        // --------------------------
         [HttpPost]
         public async Task<IActionResult> TryConnect(int id)
         {
@@ -51,9 +49,6 @@ namespace SftpApi.Controllers
             }
         }
 
-        // --------------------------
-        // 2) List directories under a path (AJAX)
-        // --------------------------
         [HttpGet]
         public async Task<IActionResult> GetDirectories(int id, string path)
         {
@@ -71,7 +66,6 @@ namespace SftpApi.Controllers
                                     {
                                         name = e.Name,
                                         fullPath = (path.TrimEnd('/') + "/" + e.Name).Replace("//", "/"),
-                                        // Detect if directory has children (cheap check)
                                         hasChildren = client.ListDirectory((path.TrimEnd('/') + "/" + e.Name).Replace("//", "/"))
                                                             .Any(x => x.IsDirectory && x.Name != "." && x.Name != "..")
                                     })
@@ -87,11 +81,8 @@ namespace SftpApi.Controllers
             }
         }
 
-        // --------------------------
-        // 3) Upload file to selected remote path
-        // --------------------------
         [HttpPost]
-        public async Task<IActionResult> SaveToServer([FromForm] int id,[FromForm] string remotePath)
+        public async Task<IActionResult> SaveToServer([FromForm] int id, [FromForm] string remotePath)
         {
             var rec = await _db.SftpAuthKeys.FindAsync(id);
             if (rec == null)
@@ -100,67 +91,58 @@ namespace SftpApi.Controllers
             if (Request.Form.Files.Count == 0)
                 return Json(new { success = false, error = "No file uploaded" });
 
-            var file = Request.Form.Files[0];
+            var uploadedFile = Request.Form.Files[0];
+
+            string safeFolderName = $"{rec.Username}_{rec.Id}";
+
+            string tempBase = @"C:\TempSftpUploads";
+
+            string userTempFolder = Path.Combine(tempBase, safeFolderName);
+            Directory.CreateDirectory(userTempFolder);
+
+            string localFilePath = Path.Combine(userTempFolder, uploadedFile.FileName);
+
+            using (var fs = new FileStream(localFilePath, FileMode.Create))
+                await uploadedFile.CopyToAsync(fs);
 
             try
             {
-                //---------------------------------------------
-                // 1️⃣ Prepare memory stream for upload
-                //---------------------------------------------
-                using var ms = new MemoryStream();
-                await file.CopyToAsync(ms);
-                ms.Position = 0;
-
-                //---------------------------------------------
-                // 2️⃣ Upload to SFTP
-                //---------------------------------------------
                 using var client = BuildClient(rec);
                 client.Connect();
 
-                string normalized = remotePath.TrimEnd('/');
-                string remoteFile = normalized + "/" + file.FileName;
+                string remoteUserFolder = $"{remotePath.TrimEnd('/')}/{safeFolderName}";
+                if (!client.Exists(remoteUserFolder))
+                    client.CreateDirectory(remoteUserFolder);
 
-                client.UploadFile(ms, remoteFile);
+                string remoteFile = $"{remoteUserFolder}/{uploadedFile.FileName}";
+
+                using (var fs2 = new FileStream(localFilePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                {
+                    client.UploadFile(fs2, remoteFile);
+                }
+
                 client.Disconnect();
 
-                //---------------------------------------------
-                // 3️⃣ Save Locally ALSO
-                //---------------------------------------------
-                //string time = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-                //string targetFolder = $@"C:\Users\sftpuser\Downloads\MvcUID{id}({time})";
+                System.IO.File.Delete(localFilePath);
 
-                //Directory.CreateDirectory(targetFolder);
+                return Json(new { success = true, message = "Uploaded successfully.", remoteFile });
+            }
+            catch
+            {
+                Hangfire.BackgroundJob.Enqueue<SftpRetryService>(x =>
+                    x.RetryUpload(id, localFilePath, remotePath)
+                );
 
-                //string localPath = Path.Combine(targetFolder, file.FileName);
-
-                //// Write stream again to local file
-                //ms.Position = 0;
-                //using (var fs = new FileStream(localPath, FileMode.Create))
-                //{
-                //    await ms.CopyToAsync(fs);
-                //}
-
-                //---------------------------------------------
-                // 4️⃣ Return result
-                //---------------------------------------------
                 return Json(new
                 {
-                    success = true,
-                    remoteFile
-                    //localPath
+                    success = false,
+                    message = "SFTP offline. Retry scheduled."
                 });
-            }
-            catch (Exception ex)
-            {
-                return Json(new { success = false, error = ex.Message });
             }
         }
 
 
 
-        // --------------------------
-        // BuildClient() same as before
-        // --------------------------
         private SftpClient BuildClient(SftpAuthKey rec)
         {
             if (rec.AuthType == AuthType.Password)

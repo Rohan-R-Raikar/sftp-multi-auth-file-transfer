@@ -61,6 +61,8 @@
     </div>
 </div>
 
+<input type="text" id="localPath" name="localPath" hidden />
+
 @section Scripts {
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.js"></script>
@@ -185,5 +187,11 @@
                 showAlert('Upload failed (network)', true);
             });
         });
+
+        $('#fileInput').on('change', function () {
+            const filePath = $(this).val();
+            $('#localPath').val(filePath);
+        });
+
     </script>
 }
