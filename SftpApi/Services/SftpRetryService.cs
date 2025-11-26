@@ -2,7 +2,7 @@
 using SftpApi.Models;
 using Microsoft.Extensions.Logging;
 using Renci.SshNet;
-using Microsoft.AspNetCore.Http.HttpResults;
+using System.IO;
 
 namespace SftpApi.Services
 {
@@ -42,15 +42,15 @@ namespace SftpApi.Services
                 using var client = _factory.BuildClient(rec);
                 client.Connect();
 
-                string safeFolderName = $"{rec.Username}_{rec.Id}";
-                string remoteUserFolder = $"{remotePath.TrimEnd('/')}/{safeFolderName}";
+                string safeFolderName = $"sftpuser_{rec.Id}";
+
+                string remoteUserFolder = $"/Users/{rec.Username}/Downloads/{safeFolderName}";
 
                 if (!client.Exists(remoteUserFolder))
                     client.CreateDirectory(remoteUserFolder);
 
                 string remoteFile = $"{remoteUserFolder}/{Path.GetFileName(localFilePath)}";
 
-                // IMPORTANT FIX: The file stream MUST be inside using
                 using (var fs = new FileStream(localFilePath, FileMode.Open, FileAccess.Read, FileShare.Read))
                 {
                     client.UploadFile(fs, remoteFile);
@@ -58,8 +58,8 @@ namespace SftpApi.Services
 
                 client.Disconnect();
 
-                // Now safe to delete because fs is closed
-                File.Delete(localFilePath);
+                //File.Delete(localFilePath);
+                System.IO.File.Delete(localFilePath);
 
                 _logger.LogInformation("Retry success: {File}", remoteFile);
             }
@@ -68,7 +68,7 @@ namespace SftpApi.Services
                 _logger.LogError(ex, "Retry upload failed for file: {File}", localFilePath);
                 throw;
             }
-        }
 
+        }
     }
 }

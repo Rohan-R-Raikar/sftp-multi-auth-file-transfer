@@ -9,5 +9,6 @@ namespace SftpApi.Data
     {
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options) { }
         public DbSet<SftpAuthKey> SftpAuthKeys { get; set; }
+        public DbSet<FailedUpload> FailedUploads { get; set; }
     }
 }

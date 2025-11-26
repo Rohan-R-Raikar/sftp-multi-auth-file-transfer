@@ -1,13 +1,15 @@
-﻿@model SftpApi.Models.SftpAuthKey
+﻿@model SftpApi.Models.ViewModels.SftpIndexViewModel
 @{
     ViewData["Title"] = "Upload to SFTP";
     Layout = "_Layout";
 }
 
-<h3 class="my-4">Upload File for <strong>@Model.Username</strong> (@Model.Host:@Model.Port)</h3>
-<h4>Using: @Model.AuthType</h4>
+<h3 class="my-4">Upload File for <strong>@Model.AuthKey.Username</strong> (@Model.AuthKey.Host:@Model.AuthKey.Port)</h3>
+<h4>Using: @Model.AuthKey.AuthType</h4>
+
 <div id="alerts"></div>
 
+<!-- Upload Form -->
 <div class="card mb-4 shadow-sm">
     <div class="card-body">
         <form id="fileForm" enctype="multipart/form-data" method="post">
@@ -29,6 +31,33 @@
         </form>
     </div>
 </div>
+
+<!-- FAILED JOBS DISPLAY -->
+@if (Model.FailedJobs?.Any() == true)
+{
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-danger text-white">
+            <i class="bi bi-exclamation-circle"></i> Failed Uploads
+        </div>
+        <div class="card-body">
+            <ul class="list-group">
+                @foreach (var fail in Model.FailedJobs)
+                {
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>Local:</strong> @fail.LocalFilePath<br />
+                            <strong>Remote:</strong> @fail.RemotePath<br />
+                            <small class="text-muted">Failed at: @fail.FailedAt</small>
+                        </div>
+                        <button class="btn btn-warning retryNowBtn" data-id="@fail.Id">
+                            Retry Now
+                        </button>
+                    </li>
+                }
+            </ul>
+        </div>
+    </div>
+}
 
 <div class="row">
     <div class="col-md-6">
@@ -65,22 +94,21 @@
 
 @section Scripts {
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.js"></script>
 
     <script>
-        const recId = @Model.Id;
+        const recId = @Model.AuthKey.Id;
         let startPath = null;
 
         function showAlert(html, isError = false) {
             $('#alerts').html(`
                 <div class="alert ${isError ? 'alert-danger' : 'alert-success'} alert-dismissible fade show" role="alert">
                     ${html}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
             `);
         }
 
-        // Build folder tree (same as your current logic)
+        // Build folder tree
         function buildBranch(entries, parentUl) {
             entries.forEach(e => {
                 const li = $('<div style="padding-left:8px;"></div>');
@@ -135,13 +163,18 @@
                 .done(function (res) {
                     $('#connectBtn').prop('disabled', false).html('<i class="bi bi-plug me-1"></i> Connect & Browse Server');
                     if (!res.success) { showAlert('Connect failed: ' + res.error, true); return; }
+
                     startPath = res.startPath;
                     $('#treeContainer').empty();
+
                     $.get('@Url.Action("GetDirectories", "SftpMvcCustom")', { id: recId, path: startPath })
                         .done(function (res2) {
                             if (!res2.success) { showAlert('List failed: ' + res2.error, true); return; }
-                            if (res2.entries.length === 0) $('#treeContainer').html('<div>(no directories)</div>');
-                            else buildBranch(res2.entries, $('#treeContainer'));
+                            if (res2.entries.length === 0)
+                                $('#treeContainer').html('<div>(no directories)</div>');
+                            else
+                                buildBranch(res2.entries, $('#treeContainer'));
+
                             showAlert('Connected. Browse folders and select destination.');
                             $('#selectedContainer').text(startPath);
                             $('#selectedPath').val(startPath);
@@ -156,16 +189,17 @@
 
         $('#uploadBtn').on('click', function () {
             const path = $('#selectedPath').val();
-            if (!path) { showAlert('Please select a folder first', true); return; }
-            const f = $('#fileInput')[0].files[0];
-            if (!f) { showAlert('Please choose a file first', true); return; }
+            const file = $('#fileInput')[0].files[0];
+
+            if (!path) return showAlert('Please select a folder first', true);
+            if (!file) return showAlert('Please choose a file first', true);
 
             $('#uploadBtn').prop('disabled', true).html('<i class="bi bi-upload me-1"></i> Uploading...');
 
             const form = new FormData();
             form.append('remotePath', path);
             form.append('id', recId);
-            form.append('file', f);
+            form.append('file', file);
 
             $.ajax({
                 url: '@Url.Action("SaveToServer", "SftpMvcCustom")',
@@ -174,24 +208,45 @@
                 processData: false,
                 contentType: false
             }).done(function (res) {
-                $('#uploadBtn').prop('disabled', false).html('<i class="bi bi-upload me-1"></i> Upload To Selected Folder');
+
+                $('#uploadBtn').prop('disabled', false)
+                    .html('<i class="bi bi-upload me-1"></i> Upload To Selected Folder');
+
                 if (!res.success) {
-                    $('#result').text('Upload failed: ' + res.error);
-                    showAlert('Upload failed: ' + res.error, true);
-                } else {
-                    $('#result').text('Uploaded: ' + res.remoteFile);
-                    showAlert('Upload succeeded');
+
+                    $('#result').html(`
+                        <div>Upload failed: ${res.message}</div>
+                        <button class="btn btn-warning mt-2 retryNowBtn" data-id="${res.failedId}">
+                            Retry Now
+                        </button>
+                    `);
+
+                    showAlert(res.message, true);
+                    return;
                 }
-            }).fail(function () {
-                $('#uploadBtn').prop('disabled', false).html('<i class="bi bi-upload me-1"></i> Upload To Selected Folder');
+
+                $('#result').text('Uploaded: ' + res.remoteFile);
+                showAlert('Upload succeeded');
+            })
+            .fail(function () {
+                $('#uploadBtn').prop('disabled', false)
+                    .html('<i class="bi bi-upload me-1"></i> Upload To Selected Folder');
                 showAlert('Upload failed (network)', true);
             });
         });
 
-        $('#fileInput').on('change', function () {
-            const filePath = $(this).val();
-            $('#localPath').val(filePath);
-        });
+        // Retry buttons (both from failed jobs list and upload errors)
+        $(document).on('click', '.retryNowBtn', function () {
+            const failedId = $(this).data('id');
 
+            $.post('@Url.Action("RetryNow", "SftpMvcCustom")', { failedId })
+                .done(function (res) {
+                    if (!res.success) return alert("Retry failed: " + res.error);
+                    alert("Retry job queued successfully!");
+                })
+                .fail(function () {
+                    alert("Error calling retry.");
+                });
+        });
     </script>
 }

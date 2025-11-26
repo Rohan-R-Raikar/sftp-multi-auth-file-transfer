@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Renci.SshNet;
 using SftpApi.Data;
 using SftpApi.Models;
+using SftpApi.Models.ViewModels;
 using SftpApi.Services;
 
 namespace SftpApi.Controllers
@@ -24,10 +25,14 @@ namespace SftpApi.Controllers
 
         public async Task<IActionResult> Upload(int id)
         {
-            var rec = await _db.SftpAuthKeys.FindAsync(id);
-            if (rec == null) return NotFound();
-            return View(rec);
+            var vm = new SftpIndexViewModel
+            {
+                AuthKey = await _db.SftpAuthKeys.FindAsync(id),
+                FailedJobs = await _db.FailedUploads.Where(x => x.SftpAuthKeyId == id && x.IsRetried == false).ToListAsync()
+            };
+            return View(vm);
         }
+
 
         [HttpPost]
         public async Task<IActionResult> TryConnect(int id)
@@ -133,14 +138,44 @@ namespace SftpApi.Controllers
                     x.RetryUpload(id, localFilePath, remotePath)
                 );
 
+                var fail = new FailedUpload
+                {
+                    SftpAuthKeyId = id,
+                    LocalFilePath = localFilePath,
+                    RemotePath = remotePath,
+                    FailedAt = DateTime.UtcNow,
+                    IsRetried = false
+                };
+
+                _db.FailedUploads.Add(fail);
+                await _db.SaveChangesAsync();
+
                 return Json(new
                 {
                     success = false,
-                    message = "SFTP offline. Retry scheduled."
+                    message = "Upload failed. Retry scheduled.",
+                    failedId = fail.Id
                 });
             }
+
         }
 
+        [HttpPost]
+        public IActionResult RetryNow(int failedId)
+        {
+            var fail = _db.FailedUploads.Find(failedId);
+            if (fail == null)
+                return Json(new { success = false, error = "Entry not found" });
+
+            Hangfire.BackgroundJob.Enqueue<SftpRetryService>(x =>
+                x.RetryUpload(fail.SftpAuthKeyId, fail.LocalFilePath, fail.RemotePath)
+            );
+
+            fail.IsRetried = true;
+            _db.SaveChanges();
+
+            return Json(new { success = true, message = "Retry queued in Hangfire" });
+        }
 
 
         private SftpClient BuildClient(SftpAuthKey rec)
