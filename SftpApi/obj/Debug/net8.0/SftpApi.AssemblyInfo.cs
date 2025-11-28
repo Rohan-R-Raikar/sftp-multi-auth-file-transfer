@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("SftpApi")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+826cb03813fed05802e421b9a2558e9f43db4f4e")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+732e37733ad333f344e0726e58f6005ab5af6874")]
 [assembly: System.Reflection.AssemblyProductAttribute("SftpApi")]
 [assembly: System.Reflection.AssemblyTitleAttribute("SftpApi")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
