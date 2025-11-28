@@ -1,9 +1,17 @@
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using SftpApi.Data;
+using SftpApi.Logger;
 using SftpApi.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+
+builder.Logging.ClearProviders();
+builder.Logging.AddProvider(new SimpleFileLoggerProvider(@"D:\Rohan\PublishForStudy\logs\myapp.log"));
 
 builder.Services.AddControllersWithViews();
 builder.Services.AddEndpointsApiExplorer();

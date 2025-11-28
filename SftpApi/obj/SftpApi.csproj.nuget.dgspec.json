@@ -73,6 +73,10 @@
               "target": "Package",
               "version": "[8.0.22, )"
             },
+            "Microsoft.Extensions.Logging": {
+              "target": "Package",
+              "version": "[8.0.1, )"
+            },
             "SSH.NET": {
               "target": "Package",
               "version": "[2025.1.0, )"

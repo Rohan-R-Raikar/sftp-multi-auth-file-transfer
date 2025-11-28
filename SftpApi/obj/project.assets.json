@@ -4925,6 +4925,7 @@
       "Microsoft.EntityFrameworkCore >= 8.0.22",
       "Microsoft.EntityFrameworkCore.SqlServer >= 8.0.22",
       "Microsoft.EntityFrameworkCore.Tools >= 8.0.22",
+      "Microsoft.Extensions.Logging >= 8.0.1",
       "SSH.NET >= 2025.1.0",
       "Swashbuckle.AspNetCore >= 6.6.2"
     ]
@@ -5001,6 +5002,10 @@
             "suppressParent": "All",
             "target": "Package",
             "version": "[8.0.22, )"
+          },
+          "Microsoft.Extensions.Logging": {
+            "target": "Package",
+            "version": "[8.0.1, )"
           },
           "SSH.NET": {
             "target": "Package",
